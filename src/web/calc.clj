@@ -3,6 +3,7 @@
             [hiccup.core :refer [html]]
             [hiccup.page :refer [html5]]
             [ring.adapter.jetty :refer [run-jetty]]
+            [ring.util.response :as ring]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.keyword-params :refer [wrap-keyword-params]]))
 
@@ -14,20 +15,22 @@
 (defn run-twice [handler]
   (fn [request]
     (when-let [response (handler request)]
-      (cond (sequential? response) (list response response)
-            (string? response) (str response response)
-            :else response))))
+      (update-in response [:body]
+                 (fn [body]
+                   (cond (sequential? body) (list body body)
+                         (string? body) (str body body)
+                         :else body))))))
 
 (defn raw-handler [request]
   (when (= {:scheme :http, :uri "/test", :request-method :get}
            (select-keys request [:scheme :uri :request-method]))
     (let [{:keys [arg]} (:params request)]
-      (hello arg))))
+      (ring/response (hello arg)))))
 
 (defn wrap-html [handler]
   (fn [request]
     (when-let [response (handler request)]
-      {:status 200, :body (html5 response)})))
+      (update-in response [:body] #(html5 %)))))
 
 (def handler (routes (run-twice raw-handler)
                      (GET "/hello" [name]
